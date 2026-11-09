@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Diwali Prep Planner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<style>
+:root{--bg:#fff7e8;--card:#ffffff;--text:#3b1f0b;--muted:#8a6a4f;--accent:#e8590c;--accent2:#f59f00;--border:#f3d9b1;--done:#2f9e44;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#1d1209;--card:#2a1a0e;--text:#ffe8cc;--muted:#c9a27a;--border:#4a3220}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#1d1209;--card:#2a1a0e;--text:#ffe8cc;--muted:#c9a27a;--border:#4a3220}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:20px 16px 40px}
+header{text-align:center;margin-bottom:18px}
+h1{margin:0;font-size:1.8rem;color:var(--accent)}
+header p{margin:6px 0 0;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px}
+form{display:flex;gap:8px;flex-wrap:wrap}
+input,select{flex:1;min-width:120px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:1rem}
+button{padding:10px 14px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-size:.95rem;cursor:pointer}
+button.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+button.small{padding:6px 10px;font-size:.85rem}
+.filters{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.filters button{background:transparent;color:var(--text);border:1px solid var(--border)}
+.filters button.on{background:var(--accent2);color:#2b1700;border-color:var(--accent2)}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed var(--border)}
+li:last-child{border-bottom:0}
+li .title{flex:1;word-break:break-word}
+li.done .title{text-decoration:line-through;color:var(--muted)}
+.tag{font-size:.75rem;padding:2px 8px;border-radius:99px;background:var(--border);color:var(--text)}
+.empty,.loading{text-align:center;color:var(--muted);padding:18px 0}
+.stats{display:flex;justify-content:space-between;color:var(--muted);font-size:.9rem;margin-bottom:8px}
+.bar{height:8px;background:var(--border);border-radius:99px;overflow:hidden;margin-bottom:12px}
+.bar div{height:100%;background:var(--done);transition:width .3s}
+.top{display:flex;justify-content:flex-end;margin-bottom:6px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useContext, createContext } = React;
+
+/* ---------- Context API: share task data with every component ---------- */
+const TaskContext = createContext();
+
+/* Fake "API": pretends to fetch data from a server (replace with fetch/axios later) */
+const defaultTasks = [
+  { id: 1, title: "Clean and decorate the house", category: "Home", done: false },
+  { id: 2, title: "Buy diyas and rangoli colours", category: "Shopping", done: true },
+  { id: 3, title: "Prepare faral and sweets", category: "Food", done: false },
+];
+function fakeFetchTasks() {
+  return new Promise((resolve) => {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem("diwali-tasks")); } catch (e) {}
+    setTimeout(() => resolve(saved || defaultTasks), 600);
+  });
+}
+
+function TaskProvider({ children }) {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // useEffect #1: runs once on load, like an API call
+  useEffect(() => {
+    fakeFetchTasks().then((data) => { setTasks(data); setLoading(false); });
+  }, []);
+
+  // useEffect #2: runs whenever tasks change, saves them
+  useEffect(() => {
+    if (!loading) {
+      try { localStorage.setItem("diwali-tasks", JSON.stringify(tasks)); } catch (e) {}
+    }
+  }, [tasks, loading]);
+
+  // CRUD operations
+  const addTask = (title, category) =>
+    setTasks([...tasks, { id: Date.now(), title, category, done: false }]);
+  const toggleTask = (id) =>
+    setTasks(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  const editTask = (id, title) =>
+    setTasks(tasks.map((t) => (t.id === id ? { ...t, title } : t)));
+  const deleteTask = (id) => setTasks(tasks.filter((t) => t.id !== id));
+
+  return (
+    <TaskContext.Provider value={{ tasks, loading, addTask, toggleTask, editTask, deleteTask }}>
+      {children}
+    </TaskContext.Provider>
+  );
+}
+
+/* ---------- Form: controlled inputs + event handling ---------- */
+function TaskForm() {
+  const { addTask } = useContext(TaskContext);
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("Home");
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    addTask(title.trim(), category);
+    setTitle("");
+  }
+
+  return (
+    <form className="card" onSubmit={handleSubmit}>
+      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Add a Diwali task…" />
+      <select value={category} onChange={(e) => setCategory(e.target.value)}>
+        <option>Home</option><option>Shopping</option><option>Food</option><option>Family</option>
+      </select>
+      <button type="submit">Add 🪔</button>
+    </form>
+  );
+}
+
+/* ---------- One task row: props + conditional rendering (edit mode) ---------- */
+function TaskItem({ task }) {
+  const { toggleTask, editTask, deleteTask } = useContext(TaskContext);
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(task.title);
+
+  function save() {
+    if (text.trim()) editTask(task.id, text.trim());
+    setEditing(false);
+  }
+
+  return (
+    <li className={task.done ? "done" : ""}>
+      <input type="checkbox" style={{ flex: "none", minWidth: 0 }} checked={task.done} onChange={() => toggleTask(task.id)} />
+      {editing ? (
+        <input value={text} onChange={(e) => setText(e.target.value)} />
+      ) : (
+        <span className="title">{task.title}</span>
+      )}
+      <span className="tag">{task.category}</span>
+      {editing ? (
+        <button className="small" onClick={save}>Save</button>
+      ) : (
+        <button className="small ghost" onClick={() => setEditing(true)}>Edit</button>
+      )}
+      <button className="small ghost" onClick={() => deleteTask(task.id)}>✕</button>
+    </li>
+  );
+}
+
+/* ---------- List + filter: lists & keys ---------- */
+function TaskList() {
+  const { tasks, loading } = useContext(TaskContext);
+  const [filter, setFilter] = useState("All");
+
+  if (loading) return <div className="card loading">Loading tasks…</div>;
+
+  const shown = tasks.filter((t) =>
+    filter === "All" ? true : filter === "Done" ? t.done : !t.done
+  );
+  const doneCount = tasks.filter((t) => t.done).length;
+  const percent = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0;
+
+  return (
+    <div className="card">
+      <div className="stats"><span>{doneCount} of {tasks.length} done</span><span>{percent}%</span></div>
+      <div className="bar"><div style={{ width: percent + "%" }}></div></div>
+      <div className="filters">
+        {["All", "Pending", "Done"].map((f) => (
+          <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>{f}</button>
+        ))}
+      </div>
+      {shown.length === 0 ? (
+        <div className="empty">Nothing here yet ✨</div>
+      ) : (
+        <ul>
+          {shown.map((t) => <TaskItem key={t.id} task={t} />)}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <TaskProvider>
+      <div className="wrap">
+        <header>
+          <h1>🪔 Diwali Prep Planner</h1>
+          <p>Plan, track and enjoy a stress-free Diwali</p>
+        </header>
+        <TaskForm />
+        <TaskList />
+      </div>
+    </TaskProvider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
